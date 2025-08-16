@@ -1,0 +1,5 @@
+
+AWS_ACCESS_KEY_ID=ここにあなたのアクセスキーIDを記述
+AWS_SECRET_ACCESS_KEY=ここにあなたのシークレットアクセスキーを記述
+AWS_DEFAULT_REGION=ap-northeast-1
+
