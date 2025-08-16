@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 import logging
 import json  # JSONを扱うために追加
+import time
 
 # ----------------------------------------------------------------------
 # 設定項目 (データを取得したい条件に合わせてここを編集してください)
@@ -17,14 +18,15 @@ TABLE_NAME = 'mmms_rowdata'
 PK_VALUE = 'tama_b'
 
 # 取得したい期間の開始日時 (YYYY/MM/DD HH:MM:SS.ms)
-START_DATETIME = '2025/07/10 10:00:00.000'
+START_DATETIME = '2025/07/01 00:00:00.000'
 
 # 取得したい期間の終了日時 (YYYY/MM/DD HH:MM:SS.ms)
-END_DATETIME = '2025/07/10 11:00:00.000'
+END_DATETIME = '2025/08/01 00:00:00.000'
 
 # 出力するCSVファイル名
 OUTPUT_CSV_FILE = 'processed_tag_data.csv'
 
+time_sleep_second = 0.5
 # ----------------------------------------------------------------------
 
 # ログ設定
@@ -35,7 +37,6 @@ logging.basicConfig(level=logging.INFO,
 def get_all_data_from_dynamo():
     """
     DynamoDBから指定された期間のデータを全て取得します。
-    (この関数は前回から変更ありません)
     """
     # .envファイルから環境変数を読み込む
     load_dotenv()
@@ -71,9 +72,16 @@ def get_all_data_from_dynamo():
                 logging.info(
                     f"{len(items)}件のデータを取得しました。(累計: {len(all_items)}件)")
 
-            exclusive_start_key = response.get('Last_evaluated_key', None)
+            # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+            # ここを修正しました (LastEvaluatedKey)
+            exclusive_start_key = response.get('LastEvaluatedKey', None)
+            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
             if not exclusive_start_key:
                 break
+            else:
+                logging.info(f"次のページを取得します。{time_sleep_second}秒待機...")
+                time.sleep(time_sleep_second)
 
         logging.info(f"合計 {len(all_items)} 件の全データ取得が完了しました。")
         return all_items
