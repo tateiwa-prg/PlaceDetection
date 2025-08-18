@@ -17,7 +17,7 @@ ANALYZED_CSV_FILE = 'closest_node_per_interval.csv'
 OUTPUT_IMAGE_FILE = 'tag_movement_graph.png'
 
 # 4. 集計する時間間隔（分）
-TIME_INTERVAL_MINUTES = 10
+TIME_INTERVAL_MINUTES = 30
 
 # 5.【重要】グラフに表示したいtag_idをリストで指定します。
 #   タグが多いとグラフが非常に見づらくなるため、見たいタグに絞ってください。
@@ -26,6 +26,7 @@ TAGS_TO_PLOT = [
     '0081f986053f',
     '0081f98602f6'
 ]
+TAGS_TO_PLOT = None
 
 # ----------------------------------------------------------------------
 
