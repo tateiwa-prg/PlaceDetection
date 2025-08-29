@@ -18,10 +18,10 @@ TABLE_NAME = 'mmms_rowdata'
 PK_VALUE = 'tama_b'
 
 # 取得したい期間の開始日時 (YYYY/MM/DD HH:MM:SS.ms)
-START_DATETIME = '2025/07/01 00:00:00.000'
+START_DATETIME = '2025/08/29 13:00:00.000'
 
 # 取得したい期間の終了日時 (YYYY/MM/DD HH:MM:SS.ms)
-END_DATETIME = '2025/08/01 00:00:00.000'
+END_DATETIME = '2025/08/30 00:00:00.000'
 
 # 出力するCSVファイル名
 OUTPUT_CSV_FILE = 'processed_tag_data.csv'
@@ -128,6 +128,7 @@ def process_and_save_csv(data, filename):
             for tag in rowdata_json.get('tag', []):
                 tag_id = tag.get('id')
                 tag_rssi = tag.get('rssi')
+                tag_volt = tag.get('volt')
 
                 # tagのIDとRSSIが存在する場合のみレコードを追加
                 if tag_id is not None and tag_rssi is not None:
@@ -135,7 +136,8 @@ def process_and_save_csv(data, filename):
                         'datetime': record_datetime,
                         'node_id': node_id,
                         'tag_id': tag_id,
-                        'tag_rssi': tag_rssi
+                        'tag_rssi': tag_rssi,
+                        'tag_volt': tag_volt
                     })
 
         except json.JSONDecodeError:
