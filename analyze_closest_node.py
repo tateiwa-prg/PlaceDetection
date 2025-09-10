@@ -12,12 +12,19 @@ OUTPUT_IMAGE_FILE = 'tag_movement_graph.png'
 TIME_INTERVAL_MINUTES = 5
 AGGREGATION_METHOD = 'max'  # mean, max, sum から選択
 
-TAGS_TO_PLOT = [
-    '0081f9860356',
-    '0081f9860866',
-    '0081f986053f',
-]
 TAGS_TO_PLOT = None
+TAGS_TO_PLOT = [
+    '0081f9860a22',
+    '0081f986075d',
+    '0081f98602f6',
+    '0081f9860866',
+    '0081f98608fc',
+    '0081f9860356',
+    '0081f9860662',
+    '0081f986057c',
+    '0081f986053f',
+    '0081f986083d',
+]
 
 NODE_NAME_CSV_FILE = 'node_names.csv'
 # ▼▼▼ 追加箇所 ▼▼▼
