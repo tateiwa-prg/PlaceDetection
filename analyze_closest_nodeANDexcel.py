@@ -27,7 +27,9 @@ TAG_NAME_CSV_FILE = 'tag_names.csv'
 
 # --- 比較対象Excelファイル設定 ---
 EXCEL_DATA_FOLDER = 'data'
-EXCEL_FILE_NAME = '居場所集計_20250904.xlsx'
+# EXCEL_FILE_NAME = '居場所集計_20250904.xlsx'
+EXCEL_FILE_NAME = '辻アプリ_20250922.xlsx'
+
 EXCEL_FILE_PATH = os.path.join(EXCEL_DATA_FOLDER, EXCEL_FILE_NAME)
 
 # --- 下のグラフ(Excel)のY軸設定 ---
