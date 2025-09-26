@@ -9,7 +9,7 @@ import os
 # ----------------------------------------------------------------------
 # --- 基本設定 ---
 INPUT_CSV_FILE = 'processed_tag_data.csv'
-ANALYZED_CSV_FILE = 'closest_node_per_interval.csv'
+ANALYZED_CSV_FILE = 'closest_node_per_interval_with_names.csv'  # ファイル名を変更
 OUTPUT_IMAGE_FILE = 'tag_movement_comparison_graph.png'
 TIME_INTERVAL_MINUTES = 5
 AGGREGATION_METHOD = 'max'  # mean, max, sum から選択
@@ -17,8 +17,15 @@ AGGREGATION_METHOD = 'max'  # mean, max, sum から選択
 # --- グラフ化対象タグ ---
 TAGS_TO_PLOT = None  # Noneにすると全タグを描画
 TAGS_TO_PLOT = [
-    '0081f9860866',
-    '0081f986053f',
+    # '0081f9860866',
+    # '0081f986053f',
+    # '0081f98607c1',
+    # '0081f986054d',
+    # '0081f98602f6',
+    '0081f9860248',
+    '0081f986075f',
+    '0081f98609cf',
+    '0081f9860a37',
 ]
 
 # --- 外部ファイル設定 ---
@@ -28,12 +35,13 @@ TAG_NAME_CSV_FILE = 'tag_names.csv'
 # --- 比較対象Excelファイル設定 ---
 EXCEL_DATA_FOLDER = 'data'
 # EXCEL_FILE_NAME = '居場所集計_20250904.xlsx'
-EXCEL_FILE_NAME = '辻アプリ_20250922.xlsx'
+EXCEL_FILE_NAME = '辻アプリ_20250926.xlsx'
 
 EXCEL_FILE_PATH = os.path.join(EXCEL_DATA_FOLDER, EXCEL_FILE_NAME)
 
 # --- 下のグラフ(Excel)のY軸設定 ---
 # 'Area' または 'SeatNumber' を指定
+EXCEL_Y_AXIS = 'SeatNumber'
 EXCEL_Y_AXIS = 'Area'
 # ----------------------------------------------------------------------
 
@@ -80,7 +88,7 @@ def process_excel_data(file_path, interval_minutes):
 
 
 def main():
-    # --- STEP 1 & 2 (変更なし) ---
+    # --- STEP 1: CSVファイルの読み込みと解析 ---
     try:
         logging.info(f"STEP 1: '{INPUT_CSV_FILE}' を読み込んで解析を開始します...")
         df = pd.read_csv(INPUT_CSV_FILE, parse_dates=['datetime'])
@@ -107,70 +115,78 @@ def main():
 
     analyzed_df = analyzed_df.sort_values(
         by=['datetime', 'tag_id']).reset_index(drop=True)
+
+    # --- STEP 2: 解析結果に名前情報を追加 ---
+    logging.info("STEP 2: 解析結果に名前情報を追加します...")
+    node_names_df = None  # 後続処理のために初期化
+    try:
+        node_names_df = pd.read_csv(NODE_NAME_CSV_FILE)
+        analyzed_df['node_id'] = analyzed_df['node_id'].astype(
+            node_names_df['node_id'].dtype)
+        analyzed_df = pd.merge(analyzed_df, node_names_df,
+                               on='node_id', how='left')
+        analyzed_df['place_name'] = analyzed_df['place_name'].fillna(
+            analyzed_df['node_id'].astype(str))
+    except FileNotFoundError:
+        logging.warning(f"'{NODE_NAME_CSV_FILE}' が見つかりません。Y軸にはnode_idを使用します。")
+        analyzed_df['place_name'] = analyzed_df['node_id'].astype(str)
+
+    try:
+        tag_names_df = pd.read_csv(TAG_NAME_CSV_FILE)
+        analyzed_df['tag_id'] = analyzed_df['tag_id'].astype(str)
+        tag_names_df['tag_id'] = tag_names_df['tag_id'].astype(str)
+
+        # ▼▼▼【変更点】departmentカラムもマージ ▼▼▼
+        analyzed_df = pd.merge(analyzed_df, tag_names_df,
+                               on='tag_id', how='left')
+
+        # 紐づかない場合に備えて、デフォルト値を設定
+        analyzed_df['tag_name'] = analyzed_df['tag_name'].fillna(
+            analyzed_df['tag_id'])
+        analyzed_df['department'] = analyzed_df['department'].fillna(
+            '所属なし')  # departmentがない場合の値を設定
+        # ▲▲▲ 変更ここまで ▲▲▲
+
+    except FileNotFoundError:
+        logging.warning(f"'{TAG_NAME_CSV_FILE}' が見つかりません。凡例にはtag_idを使用します。")
+        analyzed_df['tag_name'] = analyzed_df['tag_id']
+        analyzed_df['department'] = '所属なし'  # ファイルがない場合も列を追加
+
+    # 名前情報を追加したデータフレームをCSVに保存
     analyzed_df.to_csv(ANALYZED_CSV_FILE, index=False, encoding='utf-8-sig')
-    logging.info(f"解析結果を '{ANALYZED_CSV_FILE}' に保存しました。({len(analyzed_df)} 件)")
+    logging.info(
+        f"名前情報を追加した解析結果を '{ANALYZED_CSV_FILE}' に保存しました。({len(analyzed_df)} 件)")
+
     if analyzed_df.empty:
         logging.warning("タグの解析後データが0件でした。グラフ作成はスキップします。")
         return
 
-    logging.info(f"STEP 2: 解析結果をもとにグラフ描画の準備を開始します...")
-    plot_base_df = analyzed_df.copy()
-    try:
-        node_names_df = pd.read_csv(NODE_NAME_CSV_FILE)
-        plot_base_df['node_id'] = plot_base_df['node_id'].astype(
-            node_names_df['node_id'].dtype)
-        plot_base_df = pd.merge(
-            plot_base_df, node_names_df, on='node_id', how='left')
-        plot_base_df['place_name'] = plot_base_df['place_name'].fillna(
-            plot_base_df['node_id'].astype(str))
-    except FileNotFoundError:
-        logging.warning(f"'{NODE_NAME_CSV_FILE}' が見つかりません。Y軸にはnode_idを使用します。")
-        node_names_df = None
-        plot_base_df['place_name'] = plot_base_df['node_id'].astype(str)
+    # --- STEP 3: 比較用Excelデータの処理 ---
+    df_excel_plot = process_excel_data(EXCEL_FILE_PATH, TIME_INTERVAL_MINUTES)
 
-    try:
-        tag_names_df = pd.read_csv(TAG_NAME_CSV_FILE)
-        plot_base_df['tag_id'] = plot_base_df['tag_id'].astype(str)
-        tag_names_df['tag_id'] = tag_names_df['tag_id'].astype(str)
-        plot_base_df = pd.merge(
-            plot_base_df, tag_names_df, on='tag_id', how='left')
-        plot_base_df['tag_name'] = plot_base_df['tag_name'].fillna(
-            plot_base_df['tag_id'])
-    except FileNotFoundError:
-        logging.warning(f"'{TAG_NAME_CSV_FILE}' が見つかりません。凡例にはtag_idを使用します。")
-        plot_base_df['tag_name'] = plot_base_df['tag_id']
-
+    # --- グラフ描画対象データの絞り込み ---
     if TAGS_TO_PLOT:
-        df_plot = plot_base_df[plot_base_df['tag_id'].isin(
-            TAGS_TO_PLOT)].copy()
+        df_plot = analyzed_df[analyzed_df['tag_id'].isin(TAGS_TO_PLOT)].copy()
         if df_plot.empty:
             logging.warning("指定されたタグIDのデータが見つかりませんでした。")
             return
     else:
-        df_plot = plot_base_df.copy()
-
-    # --- STEP 3 (変更なし) ---
-    df_excel_plot = process_excel_data(EXCEL_FILE_PATH, TIME_INTERVAL_MINUTES)
+        df_plot = analyzed_df.copy()
 
     # --- STEP 4: グラフ描画 ---
     logging.info(f"STEP 4: グラフ描画を開始します...")
     fig, axes = plt.subplots(2, 1, figsize=(18, 12), sharex=True)
 
-    # 上のグラフに表示される人物名を取得
     tag_names_to_plot = df_plot['tag_name'].unique()
 
-    # ▼▼▼ 変更箇所 ▼▼▼
-    # 下のグラフ(Excel)のデータを、上のグラフに登場する人物だけでフィルタリング
     if df_excel_plot is not None:
         df_excel_plot_filtered = df_excel_plot[df_excel_plot['User'].isin(
             tag_names_to_plot)].copy()
     else:
         df_excel_plot_filtered = None
-    # ▲▲▲ 変更ここまで ▲▲▲
 
-    # カラーパレットは、フィルタリング前のExcelデータも含めた全ユーザーで作成し、色の統一性を保つ
     excel_users = df_excel_plot['User'].unique(
-    ) if df_excel_plot is not None else []
+    ).tolist() if df_excel_plot is not None else []
     all_names = sorted(list(set(tag_names_to_plot) | set(excel_users)))
     palette = {name: color for name, color in zip(
         all_names, sns.color_palette('tab20', n_colors=len(all_names)))}
@@ -187,6 +203,7 @@ def main():
     ax1.grid(True, which='both', linestyle='--', linewidth=0.5)
     ax1.legend(title='Tag Name', bbox_to_anchor=(
         1.01, 1), loc='upper left', ncol=2)
+
     if node_names_df is not None:
         all_plot_labels = df_plot['place_name'].unique().tolist()
         defined_order = node_names_df['place_name'].tolist()
@@ -200,23 +217,20 @@ def main():
 
     # --- 下のグラフ (Excelデータ) の描画 ---
     ax2 = axes[1]
-    # ▼▼▼ 変更箇所 ▼▼▼
-    # フィルタリング後のデータフレームを使用
     if df_excel_plot_filtered is not None and not df_excel_plot_filtered.empty:
         sns.lineplot(
             data=df_excel_plot_filtered, x='datetime', y=EXCEL_Y_AXIS, hue='User',
             style='User', marker='o', markersize=7, sort=False,
             ax=ax2, palette=palette
         )
-        # ▲▲▲ 変更ここまで ▲▲▲
         ax2.set_title('滞在履歴 (予約データ)', fontsize=16)
         ax2.set_ylabel(f'場所 ({EXCEL_Y_AXIS})', fontsize=12)
         ax2.grid(True, which='both', linestyle='--', linewidth=0.5)
         ax2.legend(title='User Name', bbox_to_anchor=(
             1.01, 1), loc='upper left', ncol=2)
 
-        y_labels_excel = df_excel_plot_filtered.sort_values(
-            'datetime')[EXCEL_Y_AXIS].unique()
+        y_labels_excel = df_excel_plot_filtered.sort_values('datetime')[
+            EXCEL_Y_AXIS].unique()
         ax2.set_yticks(y_labels_excel)
 
         if EXCEL_Y_AXIS == 'SeatNumber':
@@ -228,7 +242,7 @@ def main():
                  horizontalalignment='center', verticalalignment='center',
                  transform=ax2.transAxes, fontsize=12, color='gray')
 
-    # --- 共通のグラフ設定 (変更なし) ---
+    # --- 共通のグラフ設定 ---
     plt.xlabel('時刻', fontsize=12)
     plt.xticks(rotation=30, ha='right')
     plt.tight_layout(rect=[0, 0, 0.9, 1])

@@ -21,7 +21,7 @@ PK_VALUE = 'tama_b'
 START_DATETIME = '2025/09/22 00:00:00.000'
 
 # 取得したい期間の終了日時 (YYYY/MM/DD HH:MM:SS.ms)
-END_DATETIME = '2025/09/23 00:00:00.000'
+END_DATETIME = '2025/09/30 00:00:00.000'
 
 # 出力するCSVファイル名
 OUTPUT_CSV_FILE = 'processed_tag_data.csv'
