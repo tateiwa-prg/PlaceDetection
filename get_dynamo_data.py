@@ -18,7 +18,7 @@ TABLE_NAME = 'mmms_rowdata'
 PK_VALUE = 'tama_b'
 
 # 取得したい期間の開始日時 (YYYY/MM/DD HH:MM:SS.ms)
-START_DATETIME = '2025/10/01 00:00:00.000'
+START_DATETIME = '2025/10/15 09:00:00.000'
 
 # 取得したい期間の終了日時 (YYYY/MM/DD HH:MM:SS.ms)
 END_DATETIME = '2025/11/01 00:00:00.000'
