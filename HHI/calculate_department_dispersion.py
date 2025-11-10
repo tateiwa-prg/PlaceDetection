@@ -16,7 +16,7 @@ OUTPUT_GRAPH_FILE = 'department_dispersion_graph.png'
 OUTPUT_HEATMAP_FILE = 'department_dispersion_heatmap.png'
 
 # 集計する時間間隔 ('D': 日ごと, 'W': 週ごと, 'M': 月ごと)
-TIME_FREQ = 'D'
+TIME_FREQ = 'M'
 
 # 分析対象の部門
 DEPARTMENTS_TO_ANALYZE = ['airtro', 'giken']

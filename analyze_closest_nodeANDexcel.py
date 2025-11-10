@@ -8,7 +8,12 @@ import os
 # (設定項目は変更可能)
 # ----------------------------------------------------------------------
 # --- 基本設定 ---
-INPUT_CSV_FILE = 'processed_tag_data.csv'
+# INPUT_CSV_FILE = 'processed_tag_data.csv'
+INPUT_DATA_FOLDER = 'input'  # ← フォルダ名を指定
+INPUT_FILES_TO_CONCAT = [  # ← 読み込むファイル名をリストで指定
+    'processed_tag_data_Sep.csv',
+    'processed_tag_data_Oct.csv',
+]
 ANALYZED_CSV_FILE = 'closest_node_per_interval_with_names.csv'  # ファイル名を変更
 OUTPUT_IMAGE_FILE = 'tag_movement_comparison_graph.png'
 TIME_INTERVAL_MINUTES = 5
@@ -89,13 +94,31 @@ def process_excel_data(file_path, interval_minutes):
 
 def main():
     # --- STEP 1: CSVファイルの読み込みと解析 ---
-    try:
-        logging.info(f"STEP 1: '{INPUT_CSV_FILE}' を読み込んで解析を開始します...")
-        df = pd.read_csv(INPUT_CSV_FILE, parse_dates=['datetime'])
-    except FileNotFoundError:
-        logging.error(f"エラー: 入力ファイル '{INPUT_CSV_FILE}' が見つかりません。")
+    logging.info(f"STEP 1: '{INPUT_DATA_FOLDER}' フォルダから複数CSVを読み込んで解析を開始します...")
+
+    df_list = []
+    loaded_files_count = 0
+    for file_name in INPUT_FILES_TO_CONCAT:
+        file_path = os.path.join(INPUT_DATA_FOLDER, file_name)
+        try:
+            df_temp = pd.read_csv(file_path, parse_dates=['datetime'])
+            df_list.append(df_temp)
+            logging.info(f"   ... '{file_path}' を読み込みました。({len(df_temp)} 件)")
+            loaded_files_count += 1
+        except FileNotFoundError:
+            logging.warning(f"警告: ファイル '{file_path}' が見つかりません。スキップします。")
+        except Exception as e:
+            logging.warning(f"ファイル '{file_path}' の読み込み中にエラーが発生しました: {e}")
+
+    if not df_list:
+        logging.error("エラー: 読み込み可能なCSVデータがありませんでした。処理を中断します。")
         return
 
+    logging.info(f"{loaded_files_count} 件のCSVファイルを連結します...")
+    df = pd.concat(df_list, ignore_index=True)
+    logging.info(f"連結が完了しました。総データ件数: {len(df)} 件")
+
+    # --- 連結後の処理 ---
     grouper = pd.Grouper(key='datetime', freq=f'{TIME_INTERVAL_MINUTES}T')
     if AGGREGATION_METHOD == 'max':
         max_rssi_indices = df.groupby([grouper, 'tag_id'])['tag_rssi'].idxmax()

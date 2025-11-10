@@ -16,7 +16,7 @@ OUTPUT_GRAPH_FILE = 'mobility_index_graph_by_dept.png'  # (ファイル名変更
 OUTPUT_HEATMAP_FILE = 'mobility_index_heatmap_by_dept.png'  # (ファイル名変更)
 
 # 集計する時間間隔 ('D': 日ごと, 'W': 週ごと, 'M': 月ごと)
-TIME_FREQ = 'D'
+TIME_FREQ = 'M'
 
 # 分析対象の部門
 DEPARTMENTS_TO_ANALYZE = ['airtro', 'giken']
