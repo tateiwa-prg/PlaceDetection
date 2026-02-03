@@ -11,11 +11,12 @@ import matplotlib.dates as mdates
 # ----------------------------------------------------------------------
 INPUT_DATA_FOLDER = 'input'
 INPUT_FILES_TO_CONCAT = [
-    'processed_tag_data_Aug.csv',
+    # 'processed_tag_data_Aug.csv',
     'processed_tag_data_Sep.csv',
     'processed_tag_data_Oct.csv',
     'processed_tag_data_Nov.csv',
     'processed_tag_data_Dec.csv',
+    'processed_tag_data_2601.csv',
 ]
 ANALYZED_CSV_FILE = 'closest_node_per_interval_with_names.csv'
 OUTPUT_IMAGE_FILE = 'tag_movement_comparison_graph.png'
@@ -24,11 +25,23 @@ AGGREGATION_METHOD = 'max'  # mean, max, sum から選択
 
 # --- グラフ化対象タグ ---
 TAGS_TO_PLOT = [
+    # '0081f986054d',
+    # '0081f9860a22',
+    '0081f98602be',
+    # '0081f986075d',
+    # '0081f98602f6',
     # '0081f9860866',
+    # '0081f98608fc',
+    # '0081f9860356',
+    # '0081f9860662',
+    # '0081f986057c',
     # '0081f986053f',
+    # '0081f9860718',
+    # '0081f986064e',
+    '0081f98607c1',
     '0081f9860248',
-    '0081f986075f',
-    '0081f98609cf',
+    '0081f9860661',
+    '0081f986036f',
     '0081f9860a37',
 ]
 
@@ -38,12 +51,16 @@ TAG_NAME_CSV_FILE = 'tag_names.csv'
 
 # --- 比較対象Excelファイル設定 ---
 EXCEL_DATA_FOLDER = 'data'
-EXCEL_FILE_NAME = '辻アプリ_20250926.xlsx'
+EXCEL_FILE_NAME = '辻アプリ_20260203.xlsx'
 EXCEL_FILE_PATH = os.path.join(EXCEL_DATA_FOLDER, EXCEL_FILE_NAME)
 
 # --- 下のグラフ(Excel)のY軸設定 ---
 # EXCEL_Y_AXIS = 'SeatNumber'
 EXCEL_Y_AXIS = 'Area'
+PRM_custom_order = ['ホール',
+                    '2-1業務', '2-1集中', '2-2業務', '2-2集中', 'CADブース',
+                    'LIBRARY打合せ', 'LIBRARY立ち', 'LIBRARY畳', 'LOUNGE',
+                    '会議室', '屋外', 'その他', '帰宅']
 # ----------------------------------------------------------------------
 
 logging.basicConfig(level=logging.INFO,
@@ -269,7 +286,8 @@ def main():
     excel_users = df_excel_plot['User'].unique(
     ).tolist() if df_excel_plot is not None else []
 
-    all_names = sorted(list(set(tag_names_to_plot) | set(excel_users)))
+    # all_names = sorted(list(set(tag_names_to_plot) | set(excel_users)))
+    all_names = sorted(list(tag_names_to_plot))
     palette = {name: color for name, color in zip(
         all_names, sns.color_palette('tab20', n_colors=len(all_names)))}
 
@@ -295,18 +313,32 @@ def main():
     # --- 下のグラフ ---
     ax2 = axes[1]
     if df_excel_plot_filtered is not None and not df_excel_plot_filtered.empty:
+        # 1. データのクレンジング（既存の処理）
         df_excel_plot_filtered[EXCEL_Y_AXIS] = df_excel_plot_filtered[EXCEL_Y_AXIS].astype(
             str).str.replace(r'\.0$', '', regex=True)
-        y_values = df_excel_plot_filtered[EXCEL_Y_AXIS].unique()
 
-        try:
-            y_values_sorted = sorted(y_values, key=lambda x: float(
-                x) if x.replace('.', '', 1).isdigit() else x)
-        except:
-            y_values_sorted = sorted(y_values)
+        # ★★★ 2. ここで「自分で決めたい順番」をリストで作る ★★★
+        # 下から順に並べたい場合は、リストの最初を「下」にしたい名前にします
+        if EXCEL_Y_AXIS == 'Area':
+            custom_order = PRM_custom_order
 
+        else:
+            # SeatNumberなどの場合の例
+            custom_order = ['1', '2', '3', '10', '11']
+
+        # 3. データ内に存在するが、custom_orderに含まれていない値への対策（漏れ防止）
+        existing_values = df_excel_plot_filtered[EXCEL_Y_AXIS].unique()
+        missing_values = sorted(
+            [v for v in existing_values if v not in custom_order])
+
+        # 指定した順番 + 指定漏れ分 を結合した最終的な順番
+        y_values_sorted = custom_order + missing_values
+
+        # 4. カテゴリカルデータとして適用（これで軸の順番が固定されます）
         df_excel_plot_filtered[EXCEL_Y_AXIS] = pd.Categorical(
-            df_excel_plot_filtered[EXCEL_Y_AXIS], categories=y_values_sorted, ordered=True
+            df_excel_plot_filtered[EXCEL_Y_AXIS],
+            categories=y_values_sorted,
+            ordered=True
         )
 
         sns.lineplot(
@@ -314,6 +346,7 @@ def main():
             style='User', marker='o', markersize=8, sort=False,
             ax=ax2, palette=palette, dashes=False
         )
+
         ax2.set_title('滞在履歴 (予約データ)', fontsize=16)
         ax2.set_ylabel(f'場所 ({EXCEL_Y_AXIS})', fontsize=12)
         ax2.grid(True, which='both', linestyle='--', linewidth=0.5)

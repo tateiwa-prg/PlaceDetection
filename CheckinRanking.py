@@ -9,7 +9,7 @@ import japanize_matplotlib
 # --- 基本設定 ---
 # 解析対象のExcelファイル
 EXCEL_DATA_FOLDER = 'data'
-EXCEL_FILE_NAME = '辻アプリ_20250926.xlsx'
+EXCEL_FILE_NAME = '辻アプリ_20260203.xlsx'
 
 # グラフの出力先フォルダとファイル名
 OUTPUT_FOLDER = 'output_files'
@@ -17,8 +17,8 @@ OUTPUT_IMAGE_FILE = 'check_in_ranking.png'
 
 # --- 集計期間設定 ---
 # 開始日と終了日を指定 (この日付も集計に含まれます)
-START_DATE = '2025-09-16'
-END_DATE = '2025-09-25'
+START_DATE = '2025-12-16'
+END_DATE = '2026-01-31'
 # ----------------------------------------------------------------------
 
 
