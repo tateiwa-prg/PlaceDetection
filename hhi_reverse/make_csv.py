@@ -1,179 +1,177 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import platform
-
-# =========================================================
-# 設定：日本語フォントとファイル読み込み
-# =========================================================
-# OSに合わせてフォントを自動選択
-system_name = platform.system()
-if system_name == 'Windows':
-    plt.rcParams['font.family'] = 'Meiryo'
-elif system_name == 'Darwin':  # Mac
-    plt.rcParams['font.family'] = 'Hiragino Sans'
-else:
-    plt.rcParams['font.family'] = 'IPAGothic'
-
-print("データの読み込みを開始します...")
-
-# CSVファイルの読み込み（ご提示のコードで出力されたファイル）
-try:
-    df_daily = pd.read_csv('effective_locations_daily.csv')
-    df_weekly = pd.read_csv('effective_locations_weekly.csv')
-    df_monthly = pd.read_csv('effective_locations_monthly.csv')
-except FileNotFoundError as e:
-    print(f"エラー: ファイルが見つかりません。先にCSV作成プログラムを実行してください。\n詳細: {e}")
-    exit()
-
-print("読み込み完了。グラフ作成を開始します...")
-
-# =========================================================
-# 1. 箱ひげ図：粒度別の分布比較 (Graph 1 & 2)
-# =========================================================
-
-# --- 1-1. 推奨（エリア単位）の分布 ---
-plt.figure(figsize=(15, 8))
-# 中央値が高い順に並べ替え
-sort_order = df_daily.groupby(
-    'tag_name')['eff_loc_area'].median().sort_values(ascending=False).index
-
-sns.boxplot(
-    data=df_daily,
-    x='tag_name',
-    y='eff_loc_area',
-    hue='department',
-    dodge=False,
-    order=sort_order
-)
-plt.title('【日次】人ごとの有効拠点数分布 (エリア単位 - 電波ブレ除去版)', fontsize=16)
-plt.ylabel('有効拠点数', fontsize=12)
-plt.xlabel('氏名', fontsize=12)
-plt.xticks(rotation=45)
-plt.grid(axis='y', linestyle='--', alpha=0.5)
-plt.tight_layout()
-plt.savefig('graph1_daily_distribution_area.png')
-plt.close()
-print("保存完了: graph1_daily_distribution_area.png")
-
-# --- 1-2. 粒度の比較（Place vs Area vs Floor） ---
-# データを縦持ちに変換
-df_melt = df_daily.melt(
-    id_vars=['tag_name'],
-    value_vars=['eff_loc_place', 'eff_loc_area', 'eff_loc_floor'],
-    var_name='Metric',
-    value_name='Score'
-)
-
-plt.figure(figsize=(16, 8))
-sns.boxplot(
-    data=df_melt,
-    x='tag_name',
-    y='Score',
-    hue='Metric',
-    order=sort_order  # 上記と同じ並び順
-)
-plt.title('【検証】集計粒度による有効拠点数の違い', fontsize=16)
-plt.ylabel('有効拠点数', fontsize=12)
-plt.xticks(rotation=45)
-# 凡例ラベルの変更
-handles, labels = plt.gca().get_legend_handles_labels()
-plt.legend(handles=handles, labels=[
-           '場所(Place)', 'エリア(Area)', 'フロア(Floor)'], title='集計粒度')
-plt.tight_layout()
-plt.savefig('graph2_granularity_comparison.png')
-plt.close()
-print("保存完了: graph2_granularity_comparison.png")
+from datetime import timedelta
 
 
-# =========================================================
-# 2. 働き方タイプ分析：日次 vs 月次 (Graph 3 & 4)
-# =========================================================
+def _effective_count(series) -> float:
+    """
+    シェア p_i から 1 / sum(p_i^2) を計算して有効拠点数を返す。
+    series: 集計単位内での「カテゴリ」（place / area / floor など）
+    """
+    counts = series.value_counts(dropna=True).astype(float)
+    if counts.empty:
+        return 0.0
+    p = counts / counts.sum()
+    hhi = (p ** 2).sum()
+    if hhi == 0:
+        return 0.0
+    return 1.0 / hhi
 
-# --- データ結合処理 ---
-# 日次は「平均値」をとって代表値にする
-daily_agg = df_daily.groupby(['tag_name', 'department'])[
-    'eff_loc_area'].mean().reset_index()
-daily_agg.rename(columns={'eff_loc_area': 'Daily_Avg'}, inplace=True)
 
-# 週次は「平均値」をとる
-weekly_agg = df_weekly.groupby('tag_name')['eff_loc_area'].mean().reset_index()
-weekly_agg.rename(columns={'eff_loc_area': 'Weekly_Avg'}, inplace=True)
+def _mode_or_none(series):
+    """代表値として最頻値（mode）を1つ返す。なければ None。"""
+    if series is None or len(series) == 0:
+        return None
+    s = series.dropna()
+    if s.empty:
+        return None
+    m = s.mode()
+    return m.iloc[0] if not m.empty else None
 
-# 月次は「平均値」をとる（1ヶ月分ならそのままの値）
-monthly_agg = df_monthly.groupby(
-    'tag_name')['eff_loc_area'].mean().reset_index()
-monthly_agg.rename(columns={'eff_loc_area': 'Monthly_Avg'}, inplace=True)
 
-# マージ
-merged_df = daily_agg.merge(weekly_agg, on='tag_name').merge(
-    monthly_agg, on='tag_name')
+def make_effective_location_tables(
+    src_path: str = "../closest_node_per_interval_with_names.csv",
+    daily_path: str = "effective_locations_daily.csv",
+    weekly_path: str = "effective_locations_weekly.csv",
+    monthly_path: str = "effective_locations_monthly.csv",
+) -> None:
+    """
+    closest_node_per_interval_with_names.csv から
+    - effective_locations_daily.csv
+    - effective_locations_weekly.csv
+    - effective_locations_monthly.csv
+    を生成する。
 
-# --- 2-1. 散布図（働き方タイプ分類） ---
-plt.figure(figsize=(10, 8))
-sns.scatterplot(
-    data=merged_df,
-    x='Daily_Avg',
-    y='Monthly_Avg',
-    hue='department',
-    style='department',
-    s=100
-)
+    出力フォーマットは既存ファイルと同じカラム構成:
+      日次:   tag_name, date,       eff_loc_place, eff_loc_area, eff_loc_floor, department, floor, west_to_east
+      週次:   tag_name, week_start, eff_loc_place, eff_loc_area, eff_loc_floor, department, floor, west_to_east
+      月次:   tag_name, month_start,eff_loc_place, eff_loc_area, eff_loc_floor, department, floor, west_to_east
+    """
 
-# 平均線の描画
-plt.axvline(x=merged_df['Daily_Avg'].mean(), color='gray',
-            linestyle='--', alpha=0.5, label='日次平均')
-plt.axhline(y=merged_df['Monthly_Avg'].mean(),
-            color='gray', linestyle='--', alpha=0.5, label='月次平均')
+    print("元データを読み込みます:", src_path)
+    df = pd.read_csv(src_path)
 
-# 名前ラベルの表示
-for i in range(merged_df.shape[0]):
-    plt.text(
-        merged_df.Daily_Avg[i]+0.02,
-        merged_df.Monthly_Avg[i],
-        merged_df.tag_name[i],
-        fontsize=9, alpha=0.8
-    )
+    # 不要カラムを落とす（あっても無視されるが念のため）
+    if "Unnamed: 4" in df.columns:
+        df = df.drop(columns=["Unnamed: 4"])
 
-plt.title('【分類】働き方タイプマップ (活動量 vs テリトリー)', fontsize=16)
-plt.xlabel('日次の活動量 (Daily Avg)', fontsize=12)
-plt.ylabel('月次のテリトリー (Monthly Avg)', fontsize=12)
-plt.grid(True, linestyle='--', alpha=0.3)
-plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.tight_layout()
-plt.savefig('graph3_workstyle_scatter.png')
-plt.close()
-print("保存完了: graph3_workstyle_scatter.png")
+    # 日付系カラムの作成
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    df["date"] = df["datetime"].dt.date
 
-# --- 2-2. 棒グラフ（期間による積み上がり） ---
-df_period_melt = merged_df.melt(
-    id_vars=['tag_name', 'department'],
-    value_vars=['Daily_Avg', 'Weekly_Avg', 'Monthly_Avg'],
-    var_name='Period',
-    value_name='Effective_Locations'
-)
+    # 週の開始日は「その週の月曜日」とする
+    weekday = df["datetime"].dt.weekday  # Monday=0
+    df["week_start"] = (df["datetime"] - weekday.map(lambda d: timedelta(days=int(d)))).dt.date
 
-plt.figure(figsize=(15, 8))
-# 月次の値が大きい順にソート
-sort_order_monthly = merged_df.sort_values(
-    'Monthly_Avg', ascending=False)['tag_name']
+    # 月の開始日は「その月の1日」
+    df["month_start"] = df["datetime"].dt.to_period("M").dt.to_timestamp().dt.date
 
-sns.barplot(
-    data=df_period_melt,
-    x='tag_name',
-    y='Effective_Locations',
-    hue='Period',
-    order=sort_order_monthly,
-    palette='viridis'
-)
-plt.title('期間の拡大に伴う有効拠点数の変化', fontsize=16)
-plt.ylabel('有効拠点数', fontsize=12)
-plt.xlabel('氏名', fontsize=12)
-plt.xticks(rotation=45)
-plt.legend(title='集計期間', labels=['日次平均', '週次平均', '月次平均'])
-plt.tight_layout()
-plt.savefig('graph4_period_stack.png')
-plt.close()
-print("保存完了: graph4_period_stack.png")
+    # tag_name が欠損している行は除外
+    df = df[df["tag_name"].notna()].copy()
 
-print("すべての処理が完了しました。")
+    # ============ 日次テーブル ============
+    print("日次テーブルを集計中...")
+    daily_records = []
+    for (tag, date), sub in df.groupby(["tag_name", "date"]):
+        rec = {
+            "tag_name": tag,
+            "date": date,
+            # 場所（place_name 単位）の有効拠点数
+            "eff_loc_place": _effective_count(sub["place_name"]),
+            # エリア（floor × west_to_east の組み合わせ）単位の有効拠点数
+            "eff_loc_area": _effective_count(pd.Series(list(zip(sub["floor"], sub["west_to_east"])))),
+            # フロア単位の有効拠点数
+            "eff_loc_floor": _effective_count(sub["floor"]),
+            "department": _mode_or_none(sub["department"]),
+            "floor": _mode_or_none(sub["floor"]),
+            "west_to_east": _mode_or_none(sub["west_to_east"]),
+        }
+        daily_records.append(rec)
+
+    df_daily = pd.DataFrame(daily_records)
+    df_daily = df_daily.sort_values(["tag_name", "date"]).reset_index(drop=True)
+    df_daily = df_daily[
+        [
+            "tag_name",
+            "date",
+            "eff_loc_place",
+            "eff_loc_area",
+            "eff_loc_floor",
+            "department",
+            "floor",
+            "west_to_east",
+        ]
+    ]
+    df_daily.to_csv(daily_path, index=False)
+    print("日次CSVを書き出しました:", daily_path)
+
+    # ============ 週次テーブル ============
+    print("週次テーブルを集計中...")
+    weekly_records = []
+    for (tag, week_start), sub in df.groupby(["tag_name", "week_start"]):
+        rec = {
+            "tag_name": tag,
+            "week_start": week_start,
+            "eff_loc_place": _effective_count(sub["place_name"]),
+            "eff_loc_area": _effective_count(pd.Series(list(zip(sub["floor"], sub["west_to_east"])))),
+            "eff_loc_floor": _effective_count(sub["floor"]),
+            "department": _mode_or_none(sub["department"]),
+            "floor": _mode_or_none(sub["floor"]),
+            "west_to_east": _mode_or_none(sub["west_to_east"]),
+        }
+        weekly_records.append(rec)
+
+    df_weekly = pd.DataFrame(weekly_records)
+    df_weekly = df_weekly.sort_values(["tag_name", "week_start"]).reset_index(drop=True)
+    df_weekly = df_weekly[
+        [
+            "tag_name",
+            "week_start",
+            "eff_loc_place",
+            "eff_loc_area",
+            "eff_loc_floor",
+            "department",
+            "floor",
+            "west_to_east",
+        ]
+    ]
+    df_weekly.to_csv(weekly_path, index=False)
+    print("週次CSVを書き出しました:", weekly_path)
+
+    # ============ 月次テーブル ============
+    print("月次テーブルを集計中...")
+    monthly_records = []
+    for (tag, month_start), sub in df.groupby(["tag_name", "month_start"]):
+        rec = {
+            "tag_name": tag,
+            "month_start": month_start,
+            "eff_loc_place": _effective_count(sub["place_name"]),
+            "eff_loc_area": _effective_count(pd.Series(list(zip(sub["floor"], sub["west_to_east"])))),
+            "eff_loc_floor": _effective_count(sub["floor"]),
+            "department": _mode_or_none(sub["department"]),
+            "floor": _mode_or_none(sub["floor"]),
+            "west_to_east": _mode_or_none(sub["west_to_east"]),
+        }
+        monthly_records.append(rec)
+
+    df_monthly = pd.DataFrame(monthly_records)
+    df_monthly = df_monthly.sort_values(["tag_name", "month_start"]).reset_index(drop=True)
+    df_monthly = df_monthly[
+        [
+            "tag_name",
+            "month_start",
+            "eff_loc_place",
+            "eff_loc_area",
+            "eff_loc_floor",
+            "department",
+            "floor",
+            "west_to_east",
+        ]
+    ]
+    df_monthly.to_csv(monthly_path, index=False)
+    print("月次CSVを書き出しました:", monthly_path)
+
+    print("すべてのCSV生成が完了しました。")
+
+
+if __name__ == "__main__":
+    make_effective_location_tables()
